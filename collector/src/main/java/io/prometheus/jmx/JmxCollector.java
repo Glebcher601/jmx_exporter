@@ -374,6 +374,7 @@ public class JmxCollector extends Collector implements Collector.Describable {
           if (rule.pattern != null) {
             matcher = rule.pattern.matcher(matchName + ": " + beanValue);
             if (!matcher.matches()) {
+              LOGGER.fine("Cannot match bean: "+beanName + " to pattern: " + rule.pattern.pattern());
               continue;
             }
           }
@@ -443,7 +444,7 @@ public class JmxCollector extends Collector implements Collector.Describable {
           }
 
           // Add to samples.
-          LOGGER.fine("add metric sample: " + name + " " + labelNames + " " + labelValues + " " + value.doubleValue());
+          LOGGER.severe("add metric sample: " + name + " " + labelNames + " " + labelValues + " " + value.doubleValue());
           addSample(new MetricFamilySamples.Sample(name, labelNames, labelValues, value.doubleValue()), rule.type, help);
           return;
         }

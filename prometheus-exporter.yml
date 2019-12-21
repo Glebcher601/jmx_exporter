@@ -1,0 +1,53 @@
+---
+lowercaseOutputLabelNames: true
+lowercaseOutputName: true
+jmxUrl: "10041"
+rules:
+- pattern: 'java.lang<type=Runtime, key=java.runtime.name><>SystemProperties: (.*)'
+  name: jvm_runtime
+  value: -1
+  labels:
+    runtime: "$1"
+
+- pattern: 'org.glassfish.jersey<type=MonitoringExample, subType=Global, executionTimes=AllRequestTimes><>(.*)\[(.*)\]_(.*): (.*)'
+  name: jersey_exec_stats_total
+  value: "$4"
+  labels:
+    timeperiod: "$3"
+    unit: "$2"
+    type: "$1"
+  type: GAUGE
+
+- pattern: 'org.glassfish.jersey<type=MonitoringExample, subType=Global, global=Configuration><>(ApplicationClass|ApplicationName): (.*)'
+  name: jersey_config_info
+  value: -1
+  labels:
+    type: "$1"
+    value: "$2"
+
+- pattern: 'org.glassfish.jersey<type=MonitoringExample, subType=Uris, resource=(.*), detail=methods, method=(GET|POST|PUT|DELETE).*, executionTimes=RequestTimes><>(.*)\[(.*)\]_(.*): (.*)'
+  name: jersey_exec_stats
+  value: "$6"
+  labels:
+    resource: "$1"
+    method: "$2"
+    type: "$3"
+    unit: "$4"
+    timeperiod: "$5"
+  type: GAUGE
+
+
+#  type: GAUGE
+#AverageTime\[ms\]_total|MinTime\[ms\]_total|MaxTime\[ms\]_total|RequestCount_total|RequestRate\[requestsPerSeconds\]_total
+#
+#    -Djava.util.logging.config.file=/home/NIX/glebcher601/Documents/iQvia/TMF27/cloudtmf/wspt_tmf/src/main/resources/logging.properties
+#  Set<ObjectName> objects = new HashSet<ObjectName>();
+#for (ObjectName obj: jmxMBeanPropertyCache.keyPropertiesPerBean.keySet()) {
+#  if (obj.getKeyProperty("subType") != null && obj.getKeyProperty("subType").equals("Global")){
+#  objects.add(obj);
+#  }
+#}
+#  objects
+
+#Run maven with debug and agent:
+#MAVEN_OPTS="-javaagent:/home/NIX/glebcher601/Documents/jmx_exporter/jmx_prometheus_javaagent/target/jmxagent.jar=8081:/home/NIX/glebcher601/Documents/Other/monitoring-webapp/prometheus/prometheus-exporter.yml" mvnDebug jetty:run

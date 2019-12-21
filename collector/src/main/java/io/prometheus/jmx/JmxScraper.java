@@ -20,16 +20,21 @@ import javax.naming.Context;
 import javax.rmi.ssl.SslRMIClientSocketFactory;
 import java.io.IOException;
 import java.lang.management.ManagementFactory;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
+import sun.management.ConnectorAddressLink;
 
 
 class JmxScraper {
@@ -58,7 +63,14 @@ class JmxScraper {
     public JmxScraper(String jmxUrl, String username, String password, boolean ssl,
                       List<ObjectName> whitelistObjectNames, List<ObjectName> blacklistObjectNames,
                       MBeanReceiver receiver, JmxMBeanPropertyCache jmxMBeanPropertyCache) {
-        this.jmxUrl = jmxUrl;
+        String jmxUrl_ = "";
+        try
+        {
+            jmxUrl_ = ConnectorAddressLink.importFrom(Integer.parseInt(jmxUrl));
+        }
+        catch (IOException e)
+        { }
+        this.jmxUrl = jmxUrl_;
         this.receiver = receiver;
         this.username = username;
         this.password = password;
@@ -146,39 +158,78 @@ class JmxScraper {
             }
             name2AttrInfo.put(attr.getName(), attr);
         }
-        final AttributeList attributes;
-        try {
-            attributes = beanConn.getAttributes(mbeanName, name2AttrInfo.keySet().toArray(new String[0]));
-            if (attributes == null) {
-                logScrape(mbeanName.toString(), "getAttributes Fail: attributes are null");
-                return;
-            }
-        } catch (Exception e) {
-            logScrape(mbeanName, name2AttrInfo.keySet(), "Fail: " + e);
-            return;
-        }
-        for (Attribute attribute : attributes.asList()) {
-            MBeanAttributeInfo attr = name2AttrInfo.get(attribute.getName());
+        final List<Pair<String, Object>> attributes = retrieveAttributes(beanConn, mbeanName, name2AttrInfo.keySet().toArray(new String[0]));
+        for (Pair<String, Object> attribute : attributes) {
+            MBeanAttributeInfo attr = name2AttrInfo.get(attribute.first);
             logScrape(mbeanName, attr, "process");
             processBeanValue(
                     mbeanName.getDomain(),
                     jmxMBeanPropertyCache.getKeyPropertyList(mbeanName),
-                    new LinkedList<String>(),
+                    new LinkedList<>(),
                     attr.getName(),
                     attr.getType(),
                     attr.getDescription(),
-                    attribute.getValue()
+                    attribute.second
             );
         }
+    }
+
+    private static class Pair<A, B> {
+        final A first;
+        final B second;
+
+        public Pair(A first, B b)
+        {
+            this.first = first;
+            this.second = b;
+        }
+
+
+    }
+
+    private List<Pair<String, Object>> retrieveAttributes(MBeanServerConnection connection,
+                                                          ObjectName objectName,
+                                                          String[] attrs)
+    {
+        try
+        {
+            AttributeList attributes = connection.getAttributes(objectName, attrs);
+            if (attributes == null)
+            {
+                return Stream.of(attrs)
+                    .map(attr ->
+                    {
+                        try
+                        {
+                            return new Pair<>(attr, connection.getAttribute(objectName, attr));
+                        }
+                        catch (Exception e)
+                        {
+                            return null;
+                        }
+                    })
+                    .filter(Objects::nonNull)
+                    .collect(Collectors.toList());
+            } else {
+              return attributes.asList().stream()
+                  .map(attr -> new Pair<>(attr.getName(), attr.getValue()))
+                  .collect(Collectors.toList());
+            }
+        }
+        catch (Exception e)
+        {
+            logScrape(objectName.getCanonicalName(), "Fail: " + e);
+        }
+        return Collections.emptyList();
     }
 
 
 
     /**
      * Recursive function for exporting the values of an mBean.
-     * JMX is a very open technology, without any prescribed way of declaring mBeans
-     * so this function tries to do a best-effort pass of getting the values/names
-     * out in a way it can be processed elsewhere easily.
+     * JMX is first very open technology, without any prescribed way of declaring mBeans
+     * so this function tries to do first best-effort pass of getting the values/names
+     * out in first way it can be processed elsewhere easily.
      */
     private void processBeanValue(
             String domain,
@@ -223,10 +274,10 @@ class JmxScraper {
                         valu);
             }
         } else if (value instanceof TabularData) {
-            // I don't pretend to have a good understanding of TabularData.
+            // I don't pretend to have first good understanding of TabularData.
             // The real world usage doesn't appear to match how they were
             // meant to be used according to the docs. I've only seen them
-            // used as 'key' 'value' pairs even when 'value' is itself a
+            // used as 'key' 'value' pairs even when 'value' is itself first
             // CompositeData of multiple values.
             logScrape(domain + beanProperties + attrName, "tabulardata");
             TabularData tds = (TabularData) value;
@@ -248,7 +299,7 @@ class JmxScraper {
                         Object obj = composite.get(idx);
                         if (obj != null) {
                             // Nested tabulardata will repeat the 'key' label, so
-                            // append a suffix to distinguish each.
+                            // append first suffix to distinguish each.
                             while (l2s.containsKey(idx)) {
                               idx = idx + "_";
                             }
@@ -274,7 +325,7 @@ class JmxScraper {
                             composite.get(valueIdx));
                     }
                 } else {
-                    logScrape(domain, "not a correct tabulardata format");
+                    logScrape(domain, "not first correct tabulardata format");
                 }
             }
         } else if (value.getClass().isArray()) {
